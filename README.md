@@ -42,6 +42,8 @@ If the image is already available locally:
 
 ```bash
 ./install.sh build /absolute/path/to/radxa-cubie-a7z_bullseye_kde_t7.output_512.img.xz
+I found it here: (https://github.com/radxa-build/radxa-cubie-a7z/releases)
+
 ```
 
 Output:
