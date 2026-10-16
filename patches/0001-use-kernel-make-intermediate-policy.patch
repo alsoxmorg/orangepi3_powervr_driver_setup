@@ -1,0 +1,12 @@
+--- a/img-bxm/linux/rogue_km/build/linux/kbuild/Makefile.template
++++ b/img-bxm/linux/rogue_km/build/linux/kbuild/Makefile.template
+@@ -54,7 +54,8 @@
+ 
+ include $(OUT)/config_kernel.mk
+ 
+-.SECONDARY:
++# The kernel's scripts/Kbuild.include selects .SECONDARY or
++# .NOTINTERMEDIATE for the installed make version. Do not set both.
+ 
+ define symlink-source-file
+ @if [ ! -e $(dir $@) ]; then mkdir -p $(dir $@); fi

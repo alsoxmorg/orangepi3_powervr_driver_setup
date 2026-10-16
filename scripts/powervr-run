@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+if [ "$#" -eq 0 ]; then
+    echo 'Usage: powervr-run COMMAND [ARGUMENTS...]' >&2
+    exit 2
+fi
+export LD_LIBRARY_PATH="/opt/orangepi-powervr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export VK_ICD_FILENAMES=/opt/orangepi-powervr/powervr_icd.json
+export VK_DRIVER_FILES="$VK_ICD_FILENAMES"
+exec "$@"

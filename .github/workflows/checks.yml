@@ -1,0 +1,33 @@
+name: Source checks
+on: [push, pull_request]
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell, Python and JSON sources
+        run: |
+          bash -n install.sh scripts/build-package.sh scripts/diagnose.sh scripts/publish.sh
+          sh -n scripts/powervr-run
+          python3 - <<'PY'
+          import ast, json
+          from pathlib import Path
+          for source in Path('scripts').glob('*.py'):
+              ast.parse(source.read_text(), filename=str(source))
+          for metadata in Path('metadata').glob('*.json'):
+              json.loads(metadata.read_text())
+          PY
+      - name: Keep donor data and generated binaries out of the source release
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          forbidden = []
+          for name in filter(None, files):
+              path = Path(name)
+              if path.parts[0] in ('work', 'dist') or path.suffix in ('.deb', '.img', '.xz', '.ko', '.so', '.bz2'):
+                  forbidden.append(name)
+          if forbidden:
+              raise SystemExit(f'Generated/vendor files in source release: {forbidden}')
+          PY

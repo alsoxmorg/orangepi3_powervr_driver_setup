@@ -1,0 +1,6 @@
+/work/
+/dist/
+*.img
+*.xz
+*.deb
+__pycache__/
