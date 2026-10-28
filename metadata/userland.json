@@ -1,0 +1,8 @@
+{
+  "usr/local/lib/libEGL.so.1.0.0": "bc71ad8638e6dcf9da1c648358031832f2cba64021240214aacbcf5ef12d2fad",
+  "usr/local/lib/libGLESv1_CM.so.1.1.0": "1323307a2097f75705adfc656e94c940c7b79afb5c2638f372e8cd31bd0ef601",
+  "usr/local/lib/libGLESv2.so.2.0.0": "7fc44a7140101f43c84a3d6b9c9ae42efab136aad90d5e0c6aa815ac53940706",
+  "usr/local/lib/libgbm.so.1.0.0": "94677418405101cf79292c5c4942c153de6d0f14534a6a73369ef19df092cab0",
+  "usr/local/lib/libglapi.so.0.0.0": "7feb89342d531535c7e5f0fbde77c19a9d6eac22c3c5d7a1bf0bf994812508a4",
+  "usr/local/lib/dri/pvr_dri.so": "282441affd17f8194b78347db5a6f2bd91d143e5ebee5391c72320e63a62ef01"
+}

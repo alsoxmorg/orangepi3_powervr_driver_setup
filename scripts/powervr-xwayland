@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+# wlroots invokes this only when explicitly selected with WLR_XWAYLAND.
+# The vendor stack exposes GLES, not desktop OpenGL.
+unset XWAYLAND_NO_GLAMOR
+exec /usr/bin/powervr-egl-run /usr/bin/Xwayland -glamor es "$@"

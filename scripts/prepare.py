@@ -15,6 +15,12 @@ EXPECTED = '42fa0ac06b7beb5837457f373a7938857cf34f4b6c899f1a3785830d7b2b4265'
 SOURCE = 'img-bxm-dkms-0.1.0-1'
 
 
+def runtime_inputs():
+    result = json.loads((BASE / 'metadata/runtime.json').read_text())
+    result.update(json.loads((BASE / 'metadata/userland.json').read_text()))
+    return result
+
+
 def digest(path, algorithm='sha256'):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, algorithm).hexdigest()
@@ -27,7 +33,7 @@ def verify():
             local = WORK / 'source' / path.removeprefix('usr/src/')
             if digest(local, 'md5') != expected:
                 raise RuntimeError(f'Source verification failed: {path}')
-    for path, expected in json.loads((BASE / 'metadata/runtime.json').read_text()).items():
+    for path, expected in runtime_inputs().items():
         if digest(WORK / 'runtime' / path) != expected:
             raise RuntimeError(f'Runtime verification failed: {path}')
     print('Verified source and runtime contents.')
@@ -87,7 +93,7 @@ def main():
     image.unlink()
     (WORK / 'source').mkdir()
     commands = [f'rdump /usr/src/{SOURCE} source']
-    for path in json.loads((BASE / 'metadata/runtime.json').read_text()):
+    for path in runtime_inputs():
         dest = WORK / 'runtime' / path
         dest.parent.mkdir(parents=True, exist_ok=True)
         commands.append(f'dump /{path} runtime/{path}')

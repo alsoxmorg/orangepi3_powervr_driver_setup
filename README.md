@@ -3,7 +3,7 @@
 Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 13 / DietPi with the vendor 6.6 sun60iw2 kernel**. This directory is the complete source release: it downloads its pinned donor image, extracts the matching source/firmware/libraries without mounting, builds the module, and produces one local `.deb`.
 
 > **VERY EXPERIMENTAL — for a spare, easily reimaged system.**
-> This is a community bring-up experiment, not a production graphics driver or a supported OS upgrade. Kernel crashes, display loss and boot failures are possible. Keep a working image backup and another way to reach the board. **Vulkan enumeration works; vkcube presentation currently fails.** Installing this package does not establish that games, desktop acceleration, GLES, OpenCL or video acceleration work.
+> This is a community bring-up experiment, not a production graphics driver or a supported OS upgrade. Kernel crashes, display loss and boot failures are possible. Keep a working image backup and another way to reach the board. **PowerVR Vulkan cube presentation works with the optional compatibility userland and copy-presentation wrapper; broad application support remains experimental.** Installing this package does not establish that games, desktop acceleration, GLES, OpenCL or video acceleration work.
 
 ## What actually works
 
@@ -14,10 +14,12 @@ Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 
 | Firmware loading | Both matching firmware images loaded |
 | Local `.deb` installation | User installed version `24.2.6603887-1` successfully |
 | Installed Vulkan enumeration | Passed; device API `1.3.277`, DDK `24.2@6603887` |
-| Sway/Wayland | User reports it works; compositor renderer has not been independently captured |
+| Optional vendor EGL/GLES readback | Passed as root and normal user on render/display nodes; PowerVR GLES 3.2 |
+| Display GBM buffer sharing | Display-node allocation/export and PowerVR import/render/readback passed |
+| Physical PowerVR Sway | Implicit-layout workaround passed; native Wayland session ran 22 minutes and exited cleanly |
 | Xorg device selection | Fixed by the optional `sunxi-drm` primary configuration |
 | Xorg accelerated rendering | Unresolved; observed log uses llvmpipe/DRISWRAST |
-| `powervr-run vkcube` | **Fails: X11 reports no DRI3 presentation support** |
+| Vulkan/XCB cube | **Visible 120-frame test passed** with renderer import compatibility and `sw,linear` copy presentation |
 | Native Vulkan Wayland WSI | This donor driver does not advertise `VK_KHR_wayland_surface` |
 | Suspend/resume, long workloads, clean-image install | Not verified |
 
@@ -42,8 +44,6 @@ If the image is already available locally:
 
 ```bash
 ./install.sh build /absolute/path/to/radxa-cubie-a7z_bullseye_kde_t7.output_512.img.xz
-I found it here: (https://github.com/radxa-build/radxa-cubie-a7z/releases)
-
 ```
 
 Output:
@@ -79,23 +79,30 @@ powervr-run vulkaninfo --summary
 
 After this succeeds, a reboot is an experimental persistence test. Installation enables module loading on subsequent boots. After reboot verify both `lsmod | grep pvrsrvkm` and Vulkan enumeration again. Do not treat successful enumeration as successful rendering.
 
-## Why vkcube still fails
+## Optional EGL/GLES/GBM userland
 
-Plain `vkcube` does not select this privately installed ICD. `powervr-run vkcube` does, but the current X11 screen then reports:
-
-```text
-vulkan: No DRI3 support detected - required for presentation
-```
-
-The current package does not configure Xorg's accelerated EGL/GBM path. Xorg's software GL fallback and the rendering/display split still need integration. An Xorg `DRI 3` setting alone is not a demonstrated fix. The driver also lacks advertised native Wayland surface support, so Wayland presentation should be tested through **Xwayland/XCB**, not assumed to work natively.
-
-Inside a graphical terminal, collect a reproducible report:
+The optional revision -4 package includes the tested renderer import compatibility
+path and copy-presentation wrapper. It keeps system Mesa and default sessions intact.
+Follow the [userland instructions](docs/USERLAND.md):
 
 ```bash
-./install.sh diagnose --cube
+./install.sh userland
+./install.sh probe-presentation --compare
+sudo ./install.sh install-userland
 ```
 
-This runs an explicit XCB test, collects display context, extensions, providers, driver enumeration and accessible kernel/Xorg logs, and saves them under `work/diagnostics/`. Compare Xorg and Sway/Xwayland sessions. Do not run the windowed test with sudo or from a bare TTY. See [troubleshooting](docs/TROUBLESHOOTING.md) for the current diagnosis and optional Xorg fix.
+After exiting the desktop, run `powervr-sway` from a fresh local TTY without sudo.
+Inside it, test `powervr-vulkan-run vkcube --wsi xcb --c 120`.
+
+The successful hardware run used the equivalent debugger-based setup; the packaged
+normal launcher still needs a host acceptance run. PowerVR renders Vulkan, while
+the workaround uses CPU/copy presentation. Desktop OpenGL clients such as glxgears
+still use llvmpipe. The donor does not advertise native Wayland Vulkan WSI.
+
+Stock `powervr-run vkcube` alone is insufficient: the compositor needs the renderer
+import check and Vulkan needs the copy-presentation mode. Neither missing kernel
+PRIME support nor the observed crash during Xwayland failure/restart is fully fixed.
+See [validation](docs/VALIDATION.md) for exact tests and remaining limitations.
 
 ## What installation changes
 
@@ -132,18 +139,47 @@ scripts/         image verification/extraction, packaging, runtime wrapper
 patches/         Make 4.4 compatibility fix
 metadata/        donor URL, hashes and input manifests
 config/          optional Xorg primary-display configuration
+tests/           EGL/GBM hardware pixel-readback probe
 docs/            troubleshooting, validation and changelog
 ```
 
 Everything needed to orchestrate the build is here. Dependencies and the pinned vendor inputs are obtained from their original sources; this is not an offline binary distribution. There are no hardcoded paths into the developer's home directory. `work/`, `dist/`, images, binaries and diagnostic logs are ignored by Git.
 
-To publish this reviewed source directory into an existing GitHub repository from a normal network-connected shell:
+## Push this release to GitHub
+
+Run from the **release source directory**, not the outer GPU collection folder:
 
 ```bash
-./scripts/publish.sh https://github.com/OWNER/REPOSITORY.git
+cd ~/projects/gpu/release
+./scripts/publish.sh git@github.com:alsoxmorg/orangepi3_powervr_driver_setup.git
 ```
 
-It clones the remote, copies only the source-release files, commits with your configured Git identity, and performs a normal push. It never force-pushes. GitHub credentials and write access must already be configured. If a commit/push fails, inspect the checkout under `work/github-publish/`; do not blindly delete and retry. Publish the source directory's contents at the repository root so the included workflow runs as written.
+Use a normal network-connected shell. SSH uses your configured key; a repository
+deploy key must have **write access**. HTTPS uses separate GitHub authentication
+and will not use a deploy key just because one exists. Git author name/email must
+already be configured.
+
+The script clones once into `work/github-publish/`, then reuses that checkout on
+later runs. It checks the origin URL and refuses uncommitted files or divergent
+remote history. It fetches and fast-forwards the current branch, copies the current
+source release to the repository root, commits changes and pushes normally. It
+never force-pushes. A rerun also retries an already committed update after a failed
+push. Only the source whitelist is copied: README, license, installer, scripts,
+metadata, patches, configs, docs, tests and workflow. Generated packages, donor
+images, diagnostic logs, work trees and the source archive stay local.
+
+If it refuses an existing checkout, inspect it first:
+
+```bash
+git -C work/github-publish status
+git -C work/github-publish log --oneline -5
+```
+
+Review uncommitted changes or resolve divergence deliberately; do not delete the
+checkout or force-push to bypass the check. Updating GitHub publishes build and
+installation sources, not generated vendor-containing `.deb` assets. The kernel
+driver is still built locally for the target machine's kernel. See the licensing
+section before distributing vendor binaries.
 
 ## Licensing and credits
 

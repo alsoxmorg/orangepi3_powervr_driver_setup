@@ -1,0 +1,56 @@
+#!/bin/bash
+# Opt-in hardware session; never modifies the default login or boot configuration.
+set -euo pipefail
+duration=0
+sway_options=()
+if [ "${1-}" = --test-session ]; then
+  duration=60
+  sway_options=(-c /usr/share/orangepi-powervr/sway-hardware-test.conf)
+  shift
+fi
+if [ "$(id -u)" = 0 ]; then echo 'Run as your normal desktop user.' >&2; exit 1; fi
+if [ -n "${WAYLAND_DISPLAY-}${SWAYSOCK-}${DISPLAY-}" ]; then
+  echo 'Exit the current desktop, then run from a fresh local TTY (no nested Sway).' >&2
+  exit 1
+fi
+case "$(tty)" in
+  /dev/tty[0-9]*) ;;
+  *) echo 'Start the hardware session from a local virtual terminal.' >&2; exit 1 ;;
+esac
+display_device= render_device=
+for entry in /sys/class/drm/renderD* /sys/class/drm/card[0-9]*; do
+  [ -f "$entry/dev" ] || continue
+  driver=$(basename -- "$(readlink -f -- "$entry/device/driver")")
+  name=$(basename -- "$entry")
+  case "$driver:$name" in
+    sunxi-drm:card*) display_device="/dev/dri/$name" ;;
+    pvrsrvkm:renderD*) render_device="/dev/dri/$name" ;;
+  esac
+done
+if [ -z "$display_device" ] || [ -z "$render_device" ]; then
+  echo 'Both sunxi-drm display and PowerVR render devices are required.' >&2; exit 1
+fi
+logdir=${POWERVR_LOG_DIR:-"${XDG_STATE_HOME:-$HOME/.local/state}/orangepi-powervr"}
+mkdir -p "$logdir"
+log="$logdir/sway-$(date -u +%Y%m%dT%H%M%SZ)-$$.log"
+printf 'Hardware session log: %s\n' "$log"
+export WLR_BACKENDS=drm,libinput
+export WLR_RENDERER=gles2
+export WLR_DRM_DEVICES="$display_device"
+export WLR_RENDER_DRM_DEVICE="$render_device"
+export WLR_XWAYLAND=/usr/bin/powervr-xwayland
+export POWERVR_RENDERER_IMPORT_CHECK=1
+export WLR_EGL_NO_MODIFIERS=${WLR_EGL_NO_MODIFIERS:-1}
+export WLR_DRM_NO_MODIFIERS=${WLR_DRM_NO_MODIFIERS:-1}
+unset WLR_RENDERER_ALLOW_SOFTWARE XWAYLAND_NO_GLAMOR
+# Check the actual wlroots format table and GPU rendering into exported display
+# buffers before opening a DRM backend. The old texture-only check missed this.
+if ! /usr/bin/powervr-presentation-probe >> "$log" 2>&1; then
+  sync -f "$log"
+  echo "Presentation preflight failed; see $log. Display state was not changed." >&2
+  exit 1
+fi
+sync -f "$log"
+exec python3 /usr/libexec/orangepi-powervr/run-hardware-session.py \
+  --log "$log" --timeout "$duration" -- \
+  /usr/bin/powervr-compositor-run /usr/bin/sway -d "${sway_options[@]}" "$@"

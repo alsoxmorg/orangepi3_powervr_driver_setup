@@ -9,7 +9,8 @@ case "${1:-help}" in
     version=$(dpkg-query -W -f='${Version}' linux-image-vendor-sun60iw2)
     sudo apt-get update
     sudo apt-get install build-essential python3 curl e2fsprogs patch kmod dpkg-dev \
-      vulkan-tools "linux-headers-vendor-sun60iw2=$version"
+      vulkan-tools libxcb-dri2-0 libegl-dev libgles-dev libgbm-dev libdrm-dev \
+      "linux-headers-vendor-sun60iw2=$version"
     ;;
   download) exec python3 scripts/download.py ;;
   prepare) shift; exec python3 scripts/prepare.py "$@" ;;
@@ -32,6 +33,15 @@ case "${1:-help}" in
     exec apt-get install "./$package"
     ;;
   diagnose) shift; exec bash scripts/diagnose.sh "$@" ;;
+  userland) shift; exec bash scripts/build-userland.sh "$@" ;;
+  probe-userland) shift; exec bash scripts/test-userland.sh "$@" ;;
+  probe-presentation) shift; exec bash scripts/test-presentation.sh "$@" ;;
+  install-userland)
+    test "$(id -u)" = 0 || { echo 'Use sudo ./install.sh install-userland.' >&2; exit 1; }
+    package=dist/orangepi-zero3w-powervr-userland_24.2.6603887-4_arm64.deb
+    test -f "$package" || { echo 'Build the userland package first.' >&2; exit 1; }
+    exec apt-get install "./$package"
+    ;;
   *)
     cat <<'EOF'
 Experimental Orange Pi Zero 3W PowerVR driver
@@ -42,6 +52,10 @@ Experimental Orange Pi Zero 3W PowerVR driver
   sudo ./install.sh install         Install the locally built .deb
   ./install.sh diagnose             Record Vulkan/session diagnostics
   ./install.sh diagnose --cube      Also try 120 frames through X11/Xwayland
+  ./install.sh userland             Build the optional private EGL/GBM package
+  ./install.sh probe-userland       Check hardware EGL/GBM pixel readback
+  ./install.sh probe-presentation --compare  Check wlroots formats and display-buffer import (no screen changes)
+  sudo ./install.sh install-userland  Install that optional runtime (no global switch)
 
 Read README.md before installation. Rendering and reboot behavior are experimental.
 EOF

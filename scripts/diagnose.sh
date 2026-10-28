@@ -20,7 +20,9 @@ log="work/diagnostics/session-$(date -u +%Y%m%dT%H%M%SZ).log"
   dpkg-query -W -f='${Package} ${Version}\n' orangepi-zero3w-powervr vulkan-tools 2>&1
   if [ -n "${DISPLAY-}" ]; then
     printf '\n=== X server extensions and providers ===\n'
-    if command -v xdpyinfo >/dev/null; then timeout 10s xdpyinfo -queryExtensions 2>&1; fi
+    if command -v xdpyinfo >/dev/null; then
+      timeout 10s xdpyinfo -queryExtensions 2>&1 | sed -n '1,/^screen #0:/p'
+    fi
     if command -v xrandr >/dev/null; then timeout 10s xrandr --listproviders 2>&1; fi
     if command -v glxinfo >/dev/null; then timeout 10s glxinfo -B 2>&1; fi
   fi

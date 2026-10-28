@@ -1,0 +1,20 @@
+#!/bin/sh
+# Legacy Mesa EGL is selected by its soname, not by a GLVND vendor JSON.
+set -eu
+if [ "$#" -eq 0 ]; then
+    echo 'Usage: powervr-egl-run COMMAND [ARGUMENTS...]' >&2
+    exit 2
+fi
+runtime=${POWERVR_USERLAND_ROOT:-/opt/orangepi-powervr/userland}
+core=${POWERVR_CORE_LIB:-/opt/orangepi-powervr/lib}
+if [ ! -r "$runtime/lib/libEGL.so.1" ] || [ ! -r "$core/libsrv_um.so" ]; then
+    echo 'Missing vendor EGL runtime or matching PowerVR core libraries.' >&2
+    exit 1
+fi
+export LD_LIBRARY_PATH="$runtime/lib:$core${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LIBGL_DRIVERS_PATH="$runtime/lib/dri"
+# Scope the vendor stack to this command, removing inherited software/driver overrides.
+unset LIBGL_ALWAYS_SOFTWARE LIBGL_ALWAYS_INDIRECT MESA_LOADER_DRIVER_OVERRIDE GALLIUM_DRIVER
+export VK_ICD_FILENAMES=/opt/orangepi-powervr/powervr_icd.json
+export VK_DRIVER_FILES="$VK_ICD_FILENAMES"
+exec "$@"

@@ -16,6 +16,10 @@ powervr-run vkcube:
 
 These are two separate failures. The first command does not select this package's private ICD. The wrapper fixes driver selection. The wrapped command then fails at X11 DRI3 presentation, before proving any cube rendering; the assertion is a consequence of failing to find a suitable presenting GPU.
 
+The user confirmed the wrapped failure also occurs **inside Sway/Wayland**. `Selected WSI platform: xcb` means this attempt uses **Xwayland**, not a native Wayland Vulkan surface. The standalone Xorg configuration does not configure Sway's Xwayland server. A working Sway desktop does not prove that Xwayland has accelerated EGL/GBM or DRI3 support; its renderer and startup log still need inspection.
+
+The saved 2026-10-17 Sway-session diagnostic confirms Xwayland 24.1.6, no DRI3 in its advertised extension list, and GLX renderer llvmpipe with `Accelerated: no`. PowerVR Vulkan enumeration succeeds in the same session and the account belongs to `render`. The missing presentation extension is therefore confirmed, rather than inferred from the cube's error. This does not determine Sway's own renderer. The standalone Xorg log appended by the diagnostic belongs to a separate server and must not be used as Xwayland's startup log.
+
 The contemporaneous Xorg log reports `Refusing to try glamor on llvmpipe`, `glamor initialization failed`, `Screen 0 is not DRI2 capable`, and `DRISWRAST`. It logs initialization of the DRI3 extension machinery, which does not establish that DRI3 is usable for this screen. The installed `libxcb-dri3-0` package is already present; reinstalling it is not a fix for server-side screen support.
 
 The likely missing integration is accelerated EGL/GBM/DRI3 for the display/render split. The current package deliberately packages Vulkan userspace only; donor Mesa EGL/GBM/DRI modules are not activated for Xorg. Adding `Option "DRI" "3"` alone does not provide that integration. A complete fix still needs an isolated Xorg EGL/GBM test, then verification of DMA-BUF/PRIME and buffer presentation on the two DRM devices.

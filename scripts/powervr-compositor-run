@@ -1,0 +1,33 @@
+#!/bin/sh
+# Select vendor libraries for this ELF process without exporting a vendor
+# LD_LIBRARY_PATH/LIBGL_DRIVERS_PATH to every native Wayland client it starts.
+set -eu
+if [ "$#" -eq 0 ]; then
+    echo 'Usage: powervr-compositor-run /absolute/path/to/ELF [ARGUMENTS...]' >&2
+    exit 2
+fi
+runtime=${POWERVR_USERLAND_ROOT:-/opt/orangepi-powervr/userland}
+core=${POWERVR_CORE_LIB:-/opt/orangepi-powervr/lib}
+shim=${POWERVR_DRI_PATH_SHIM:-"$runtime/lib/libpowervr-dri-path.so"}
+if [ ! -r "$runtime/lib/libEGL.so.1" ] || [ ! -r "$core/libsrv_um.so" ]; then
+    echo 'Missing private vendor EGL runtime or matching core libraries.' >&2
+    exit 1
+fi
+if [ ! -r "$shim" ]; then
+    echo 'Missing process-private EGL DRI-path helper; build/install the updated userland.' >&2
+    exit 1
+fi
+if [ "${POWERVR_RENDERER_IMPORT_CHECK:-0}" = 1 ]; then
+    version=$(dpkg-query -W -f='${Version}' libwlroots-0.18 2>/dev/null || true)
+    case "$version" in 0.18.*) ;; *) echo 'Renderer import compatibility requires wlroots 0.18.' >&2; exit 1 ;; esac
+    import_shim="$runtime/lib/libpowervr-egl-import-check.so"
+    if [ ! -r "$import_shim" ]; then
+        echo 'Missing renderer import compatibility helper; install userland revision -4.' >&2; exit 1
+    fi
+    shim="$shim:$import_shim"
+fi
+export GBM_DRIVERS_PATH="$runtime/lib/dri"
+export POWERVR_PRIVATE_DRI_PATH="$runtime/lib/dri"
+exec /lib/ld-linux-aarch64.so.1 \
+    --library-path "$runtime/lib:$core${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+    --preload "$shim" "$@"

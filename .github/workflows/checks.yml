@@ -7,8 +7,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check shell, Python and JSON sources
         run: |
-          bash -n install.sh scripts/build-package.sh scripts/diagnose.sh scripts/publish.sh
-          sh -n scripts/powervr-run
+          for script in install.sh scripts/*.sh scripts/powervr-sway scripts/powervr-presentation-probe; do bash -n "$script"; done
+          for script in scripts/powervr-run scripts/powervr-vulkan-run scripts/powervr-egl-run scripts/powervr-compositor-run scripts/powervr-xwayland; do sh -n "$script"; done
           python3 - <<'PY'
           import ast, json
           from pathlib import Path
@@ -17,6 +17,8 @@ jobs:
           for metadata in Path('metadata').glob('*.json'):
               json.loads(metadata.read_text())
           PY
+          python3 tests/test-session-guard.py
+          bash scripts/test-import-check.sh
       - name: Keep donor data and generated binaries out of the source release
         run: |
           python3 - <<'PY'
@@ -26,8 +28,15 @@ jobs:
           forbidden = []
           for name in filter(None, files):
               path = Path(name)
-              if path.parts[0] in ('work', 'dist') or path.suffix in ('.deb', '.img', '.xz', '.ko', '.so', '.bz2'):
+              if path.parts[0] in ('work', 'dist') or '.so.' in path.name or path.suffix in ('.deb', '.img', '.xz', '.ko', '.so', '.bz2', '.o', '.a'):
                   forbidden.append(name)
           if forbidden:
               raise SystemExit(f'Generated/vendor files in source release: {forbidden}')
           PY
+      - name: Compile the hardware probe without executing it
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl-dev libgles-dev libgbm-dev libdrm-dev
+          cc -std=c11 -O2 -Wall -Wextra -Werror tests/egl-gbm-probe.c -o /tmp/egl-gbm-probe -lEGL -lGLESv2 -lgbm
+          cc -std=c11 -O2 -Wall -Wextra -Werror tests/wlroots-format-probe.c -o /tmp/wlroots-format-probe -ldl
+          cc -std=c11 -O2 -Wall -Wextra -Werror -fPIC -shared scripts/egl-dri-path.c -ldl -o /tmp/libpowervr-dri-path.so

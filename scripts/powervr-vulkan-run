@@ -1,0 +1,10 @@
+#!/bin/sh
+# Verified PowerVR Vulkan selection with the vendor WSI's copy-presentation path.
+# Does not enable native Wayland WSI or hardware desktop OpenGL.
+set -eu
+if [ "$#" -eq 0 ]; then
+    echo 'Usage: powervr-vulkan-run COMMAND [ARGUMENTS...]' >&2
+    exit 2
+fi
+export MESA_VK_WSI_DEBUG=sw,linear
+exec /usr/bin/powervr-run "$@"

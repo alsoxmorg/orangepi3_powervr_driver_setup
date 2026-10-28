@@ -1,0 +1,41 @@
+#!/bin/bash
+# No DRM master, KMS commits, windows, or desktop/session changes.
+set -euo pipefail
+compare=0
+if [ "${1-}" = --compare ]; then compare=1; shift; fi
+if [ "$#" -ne 0 ]; then echo 'Usage: powervr-presentation-probe [--compare]' >&2; exit 2; fi
+runner=${POWERVR_COMPOSITOR_RUN:-/usr/bin/powervr-compositor-run}
+egl_probe=${POWERVR_EGL_PROBE:-/usr/bin/powervr-egl-probe}
+format_probe=${POWERVR_FORMAT_PROBE:-/usr/bin/powervr-wlroots-format-probe}
+display_device= render_device=
+for entry in /sys/class/drm/renderD* /sys/class/drm/card[0-9]*; do
+  [ -f "$entry/dev" ] || continue
+  driver=$(basename -- "$(readlink -f -- "$entry/device/driver")")
+  name=$(basename -- "$entry")
+  case "$driver:$name" in
+    sunxi-drm:card*) display_device="/dev/dri/$name" ;;
+    pvrsrvkm:renderD*) render_device="/dev/dri/$name" ;;
+  esac
+done
+if [ -z "$display_device" ] || [ -z "$render_device" ]; then
+  echo 'Both sunxi-drm display and PowerVR render devices are required.' >&2; exit 1
+fi
+if [ "$compare" = 1 ]; then
+  echo '=== Baseline wlroots format negotiation (failure is diagnostic) ==='
+  if env -u WLR_EGL_NO_MODIFIERS -u WLR_DRM_NO_MODIFIERS \
+      timeout --kill-after=5s 30s "$runner" "$format_probe" "$render_device"; then
+    echo 'Baseline accepts XRGB8888.'
+  else
+    echo "Baseline rejected or failed (exit $?). Continuing with implicit layouts."
+  fi
+fi
+export WLR_EGL_NO_MODIFIERS=${WLR_EGL_NO_MODIFIERS:-1}
+export WLR_DRM_NO_MODIFIERS=${WLR_DRM_NO_MODIFIERS:-1}
+printf '=== Candidate layout mode: EGL_NO_MODIFIERS=%s DRM_NO_MODIFIERS=%s ===\n' \
+  "$WLR_EGL_NO_MODIFIERS" "$WLR_DRM_NO_MODIFIERS"
+timeout --kill-after=5s 30s "$runner" "$format_probe" "$render_device"
+echo '=== Display-node buffer import into the PowerVR renderer ==='
+timeout --kill-after=5s 30s "$runner" "$egl_probe" "$render_device" --display-node "$display_device"
+echo '=== Display-node EGL and buffer rendering ==='
+timeout --kill-after=5s 30s "$runner" "$egl_probe" "$display_device"
+echo 'PASS: format negotiation and display-buffer rendering preflight (KMS presentation remains untested)'
