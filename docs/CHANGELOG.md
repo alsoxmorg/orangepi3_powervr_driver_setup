@@ -1,3 +1,11 @@
+## Board profiles — core revision 4 / userland revision 5
+
+- Add `BOARD_ENV=""` detection and `opz3w` / `opz4` profiles, retaining existing Debian package names.
+- Mark Zero 4 unverified, with a provisional compatible identifier pending target capture.
+- Bind core packages to the selected board and isolate build directories/output records.
+- Select kernel package names by profile and scale build jobs to available memory.
+- Include board documentation and metadata in packages; runtime graphics workarounds are unchanged.
+
 # Changelog
 
 ## Optional userland add-on 24.2.6603887-4 — verified compatibility path

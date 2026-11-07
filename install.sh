@@ -1,20 +1,25 @@
 #!/bin/bash
 set -euo pipefail
 cd -- "$(dirname -- "$(readlink -f -- "$0")")"
+source scripts/board-env.sh
 case "${1:-help}" in
+  boards) exec python3 scripts/boards.py --list ;;
+  board) exec python3 scripts/boards.py ;;
   deps)
+    board_env_init check
     if [ "$(id -u)" = 0 ]; then
       echo 'Run ./install.sh deps as your normal user; it invokes sudo.' >&2; exit 1
     fi
-    version=$(dpkg-query -W -f='${Version}' linux-image-vendor-sun60iw2)
+    version=$(dpkg-query -W -f='${Version}' "$KERNEL_IMAGE_PACKAGE")
     sudo apt-get update
     sudo apt-get install build-essential python3 curl e2fsprogs patch kmod dpkg-dev \
       vulkan-tools libxcb-dri2-0 libegl-dev libgles-dev libgbm-dev libdrm-dev \
-      "linux-headers-vendor-sun60iw2=$version"
+      "$KERNEL_HEADERS_PACKAGE=$version"
     ;;
   download) exec python3 scripts/download.py ;;
   prepare) shift; exec python3 scripts/prepare.py "$@" ;;
   build)
+    board_env_init check
     test "$(id -u)" != 0 || { echo 'Build as your normal user.' >&2; exit 1; }
     if [ ! -d work/source ] && [ ! -d work/runtime ]; then
       if [ "$#" -gt 1 ]; then
@@ -27,9 +32,27 @@ case "${1:-help}" in
     exec bash scripts/build-package.sh
     ;;
   install)
+    board_env_init check
     test "$(id -u)" = 0 || { echo 'Use sudo ./install.sh install.' >&2; exit 1; }
     package=dist/orangepi-zero3w-powervr_24.2.6603887-2_arm64.deb
+    record="dist/core-package-$BOARD_ENV.path"
+    if [ "$BOARD_ENV" = opz3w ] && [ ! -f "$record" ]; then record=dist/core-package.path; fi
+    if [ -f "$record" ]; then
+      name=$(cat "$record")
+      case "$name" in orangepi-zero3w-powervr_*_arm64.deb) ;; *) echo 'Invalid recorded package name.' >&2; exit 1 ;; esac
+      case "$name" in */*) echo 'Invalid package path.' >&2; exit 1 ;; esac
+      package="dist/$name"
+    elif [ "$BOARD_ENV" != opz3w ]; then
+      echo "Build the $BOARD_ENV core package first." >&2; exit 1
+    fi
     test -f "$package" || { echo 'Build first.' >&2; exit 1; }
+    control=$(mktemp -d)
+    trap 'rm -rf -- "$control"' EXIT
+    dpkg-deb -e "$package" "$control"
+    # Validate the target encoded in the package, not just its filename/pointer.
+    sh "$control/preinst" upgrade
+    rm -rf -- "$control"
+    trap - EXIT
     exec apt-get install "./$package"
     ;;
   diagnose) shift; exec bash scripts/diagnose.sh "$@" ;;
@@ -37,15 +60,19 @@ case "${1:-help}" in
   probe-userland) shift; exec bash scripts/test-userland.sh "$@" ;;
   probe-presentation) shift; exec bash scripts/test-presentation.sh "$@" ;;
   install-userland)
+    board_env_init check
     test "$(id -u)" = 0 || { echo 'Use sudo ./install.sh install-userland.' >&2; exit 1; }
-    package=dist/orangepi-zero3w-powervr-userland_24.2.6603887-4_arm64.deb
+    package=dist/orangepi-zero3w-powervr-userland_24.2.6603887-5_arm64.deb
     test -f "$package" || { echo 'Build the userland package first.' >&2; exit 1; }
     exec apt-get install "./$package"
     ;;
   *)
     cat <<'EOF'
-Experimental Orange Pi Zero 3W PowerVR driver
+Experimental Orange Pi A733 PowerVR driver (opz3w / opz4)
 
+  ./install.sh boards               List board profiles and validation status
+  ./install.sh board                Show selected profile (BOARD_ENV="" auto-detects)
+  BOARD_ENV=opz4 ./install.sh build  Select Orange Pi Zero 4 explicitly
   ./install.sh deps                 Install matching headers and tools via sudo
   ./install.sh build                Download donor, extract, compile and package
   ./install.sh build /path/img.xz   Use a local copy of the exact donor instead

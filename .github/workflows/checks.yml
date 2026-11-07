@@ -18,6 +18,7 @@ jobs:
               json.loads(metadata.read_text())
           PY
           python3 tests/test-session-guard.py
+          python3 tests/test-boards.py
           bash scripts/test-import-check.sh
       - name: Keep donor data and generated binaries out of the source release
         run: |

@@ -1,4 +1,4 @@
-# Experimental PowerVR driver for Orange Pi Zero 3W
+# Experimental PowerVR driver for Orange Pi Zero 3W / Zero 4
 
 Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 13 / DietPi with the vendor 6.6 sun60iw2 kernel**. This directory is the complete source release: it downloads its pinned donor image, extracts the matching source/firmware/libraries without mounting, builds the module, and produces one local `.deb`.
 
@@ -23,7 +23,21 @@ Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 
 | Native Vulkan Wayland WSI | This donor driver does not advertise `VK_KHR_wayland_surface` |
 | Suspend/resume, long workloads, clean-image install | Not verified |
 
-The tested baseline is Orange Pi Zero 3W, ARM64, Debian 13, kernel `6.6.98-vendor-sun60iw2`, kernel and header packages `26.11.0-trunk-dietpi1`, with approximately 6 GB RAM. Other boards and mainline kernels are outside this release's scope. Other releases within the vendor 6.6 line are accepted by the script but remain untested.
+The tested baseline is Orange Pi Zero 3W, ARM64, Debian 13, kernel `6.6.98-vendor-sun60iw2`, kernel and header packages `26.11.0-trunk-dietpi1`, with approximately 6 GB RAM. Orange Pi Zero 4 now has an experimental, unverified profile; mainline kernels remain outside this release's scope. Other releases within the vendor 6.6 line are accepted by the script but remain untested.
+
+## Board selection
+
+`config/board.env` contains `BOARD_ENV=""`, which detects the board from its device tree. Set it to `opz3w` (Orange Pi Zero 3W) or `opz4` (Orange Pi Zero 4), or override it in the environment:
+
+```bash
+./install.sh boards
+BOARD_ENV=opz4 ./install.sh board
+BOARD_ENV=opz4 ./install.sh deps
+BOARD_ENV=opz4 ./install.sh build
+sudo BOARD_ENV=opz4 ./install.sh install
+```
+
+**Zero 4 is an unverified bring-up profile.** Its expected device-tree identifier is provisional; confirm the new board's identity before installation. Explicit selection still checks the actual hardware. See [board profiles and acceptance checks](docs/BOARDS.md). Builds choose fewer parallel jobs when available RAM is low; `JOBS=1` overrides this. Historical `orangepi-zero3w-powervr` Debian package names are retained for dependency compatibility on both profiles.
 
 ## Quick start
 
@@ -49,7 +63,7 @@ If the image is already available locally:
 Output:
 
 ```text
-dist/orangepi-zero3w-powervr_24.2.6603887-2_arm64.deb
+dist/orangepi-zero3w-powervr_24.2.6603887-4+opz3w.kernel<KERNEL_PACKAGE_VERSION>_arm64.deb
 dist/SHA256SUMS
 ```
 
@@ -81,7 +95,7 @@ After this succeeds, a reboot is an experimental persistence test. Installation 
 
 ## Optional EGL/GLES/GBM userland
 
-The optional revision -4 package includes the tested renderer import compatibility
+The optional revision -5 package includes the tested renderer import compatibility
 path and copy-presentation wrapper. It keeps system Mesa and default sessions intact.
 Follow the [userland instructions](docs/USERLAND.md):
 
@@ -120,6 +134,26 @@ The module follows the board's existing GPU clock/voltage device-tree settings. 
 ## Kernel updates and removal
 
 This is an **exact-kernel package, not DKMS**. Its dependency pins the kernel package version used to build it. Rebuild for kernel updates; review apt's proposed changes if an upgrade removes or holds back this package. Keep a copy of your working `.deb` locally.
+
+If the kernel upgrade is blocked by the installed GPU package, keep the userland
+installed and prepare a replacement core package before upgrading the image:
+
+1. Choose the new kernel package version and install its matching
+   `linux-headers-vendor-sun60iw2` package first.
+2. With verified `work/source/` and `work/runtime/` inputs present, run
+   `bash scripts/build-package.sh --kernel-package VERSION` as your normal user.
+   It targets the installed matching headers, even while the old kernel is running.
+3. Install the resulting local GPU `.deb` and
+   `linux-image-vendor-sun60iw2=VERSION` together in one `sudo apt install` command.
+   Include `linux-headers-vendor-sun60iw2=VERSION` to keep the pair aligned.
+4. After apt completes, reboot and verify the module and the opt-in graphics session.
+
+The output filename includes the target kernel package version, and
+`dist/core-package.path` records it. The build still checks header/package matching
+and module vermagic. Package-version matching matters even when a vendor update
+keeps the same `uname -r`. Do not remove the dependency pin or purge working
+userland merely to make apt proceed. A loaded old module is not replaced in memory
+by installation; a reboot is required to test the new kernel/module pairing.
 
 To rebuild from the retained verified inputs, first move the generated build and package staging directories aside, then run build again. Keep `work/source/` and `work/runtime/`.
 

@@ -1,35 +1,58 @@
 #!/bin/bash
 set -euo pipefail
 cd -- "$(dirname -- "$(readlink -f -- "$0")")/.."
+requested_image_version=
+if [ "$#" = 2 ] && [ "$1" = --kernel-package ]; then
+  requested_image_version=$2
+elif [ "$#" != 0 ]; then
+  echo 'Usage: build-package.sh [--kernel-package VERSION]' >&2; exit 2
+fi
 test "$(id -u)" != 0 || { echo 'Build as a normal user.' >&2; exit 1; }
 test "$(uname -m)" = aarch64 || { echo 'Native ARM64 build required.' >&2; exit 1; }
-tr '\0' '\n' < /proc/device-tree/compatible | grep -qx 'xunlong,orangepi-zero3w' || {
-  echo 'This package currently targets the Orange Pi Zero 3W only.' >&2; exit 1;
-}
+source scripts/board-env.sh
+board_env_init check
+image_version=$(dpkg-query -W -f='${Version}' "$KERNEL_IMAGE_PACKAGE")
+header_version=$(dpkg-query -W -f='${Version}' "$KERNEL_HEADERS_PACKAGE")
 kernel=$(uname -r)
+headers="/lib/modules/$kernel/build"
+if [ -n "$requested_image_version" ]; then
+  test "$requested_image_version" = "$header_version" || {
+    echo 'Install headers matching the requested kernel package version first.' >&2; exit 1;
+  }
+  release_file=$(dpkg-query -L "$KERNEL_HEADERS_PACKAGE" | grep '/include/config/kernel.release$')
+  test -f "$release_file" || { echo 'Cannot identify the installed header tree.' >&2; exit 1; }
+  headers=${release_file%/include/config/kernel.release}
+  kernel=$(cat "$release_file")
+  image_version=$requested_image_version
+else
+  test "$image_version" = "$header_version" || {
+    echo 'Kernel/header package versions differ. To prepare an upgrade, explicitly use --kernel-package VERSION with matching installed headers.' >&2; exit 1;
+  }
+fi
 case "$kernel" in
   6.6.*-vendor-sun60iw2) ;;
   *) echo 'Only the vendor sun60iw2 6.6 kernel line is supported by this experiment.' >&2; exit 1 ;;
 esac
-headers="/lib/modules/$kernel/build"
 test -f "$headers/Module.symvers" || { echo "Missing exact headers for $kernel" >&2; exit 1; }
 test "$(cat "$headers/include/config/kernel.release")" = "$kernel"
-image_version=$(dpkg-query -W -f='${Version}' linux-image-vendor-sun60iw2)
-header_version=$(dpkg-query -W -f='${Version}' linux-headers-vendor-sun60iw2)
 test "$image_version" = "$header_version" || { echo 'Kernel and header package versions differ.' >&2; exit 1; }
+kernel_tag=${image_version//:/+}
+package_version="24.2.6603887-4+$BOARD_ENV.kernel$kernel_tag"
+package_name="orangepi-zero3w-powervr_${package_version}_arm64.deb"
+printf 'Building for kernel %s, kernel/header package %s\n' "$kernel" "$image_version"
 python3 scripts/prepare.py --verify
-mkdir -p work/build dist
-source_dir=work/build/img-bxm-dkms-0.1.0-1
-test ! -e "$source_dir" || { echo 'Move work/build/ aside before rebuilding.' >&2; exit 1; }
+mkdir -p "work/build-$BOARD_ENV" dist
+source_dir="work/build-$BOARD_ENV/img-bxm-dkms-0.1.0-1"
+test ! -e "$source_dir" || { echo "Move work/build-$BOARD_ENV/ aside before rebuilding." >&2; exit 1; }
 cp -a work/source/img-bxm-dkms-0.1.0-1 "$source_dir"
 patch -d "$source_dir" -p1 < patches/0001-use-kernel-make-intermediate-policy.patch
 make -j"${JOBS:-4}" BUILD=release KERNEL_CC=gcc KERNEL_LD=ld KERNEL_NM=nm \
   KERNEL_OBJCOPY=objcopy KERNELDIR="$headers" \
-  -C "$source_dir/img-bxm/linux/rogue_km/build/linux/sunxi_linux" 2>&1 | tee work/build.log
+  -C "$source_dir/img-bxm/linux/rogue_km/build/linux/sunxi_linux" 2>&1 | tee "work/build-$BOARD_ENV.log"
 module="$source_dir/img-bxm/linux/rogue_km/binary_sunxi_linux_nulldrmws_release/target_aarch64/kbuild/pvrsrvkm.ko"
 test "$(/sbin/modinfo -F vermagic "$module" | cut -d' ' -f1)" = "$kernel"
-stage=work/package
-test ! -e "$stage" || { echo 'Move work/package/ aside before packaging.' >&2; exit 1; }
+stage="work/package-$BOARD_ENV"
+test ! -e "$stage" || { echo "Move $stage/ aside before packaging." >&2; exit 1; }
 mkdir -p "$stage/DEBIAN" "$stage/opt/orangepi-powervr/lib" \
   "$stage/lib/modules/$kernel/updates/orangepi-powervr" "$stage/lib/firmware/updates" \
   "$stage/usr/bin" "$stage/usr/share/doc/orangepi-zero3w-powervr" \
@@ -41,6 +64,7 @@ patch -d "$stage/usr/src/orangepi-powervr-24.2.6603887" -p1 < patches/0001-use-k
 cp patches/*.patch "$stage/usr/share/doc/orangepi-zero3w-powervr/"
 cp README.md LICENSE "$stage/usr/share/doc/orangepi-zero3w-powervr/"
 cp -a docs "$stage/usr/share/doc/orangepi-zero3w-powervr/"
+cp metadata/boards.json "$stage/usr/share/doc/orangepi-zero3w-powervr/"
 install -m755 scripts/powervr-run "$stage/usr/bin/powervr-run"
 printf 'pvrsrvkm\n' > "$stage/etc/modules-load.d/orangepi-powervr.conf"
 python3 - "$stage" <<'PY'
@@ -64,15 +88,16 @@ PY
 # Runtime dependencies cover the Vulkan driver and its dynamically loaded WSI helper.
 cat > "$stage/DEBIAN/control" <<EOF
 Package: orangepi-zero3w-powervr
-Version: 24.2.6603887-2
+Version: $package_version
 Architecture: arm64
-Maintainer: Orange Pi Zero 3W PowerVR experiment <noreply@example.invalid>
-Depends: linux-image-vendor-sun60iw2 (= $image_version), kmod, libc6, libstdc++6, libgcc-s1, libdrm2, libx11-6, libx11-xcb1, libxcb1, libxcb-dri3-0, libxcb-present0, libxcb-xfixes0, libxcb-sync1, libxcb-randr0, libxcb-shm0, libxshmfence1, libexpat1, libudev1, zlib1g
+Maintainer: Orange Pi A733 PowerVR experiment <noreply@example.invalid>
+Depends: $KERNEL_IMAGE_PACKAGE (= $image_version), kmod, libc6, libstdc++6, libgcc-s1, libdrm2, libx11-6, libx11-xcb1, libxcb1, libxcb-dri3-0, libxcb-present0, libxcb-xfixes0, libxcb-sync1, libxcb-randr0, libxcb-shm0, libxshmfence1, libexpat1, libudev1, zlib1g
 Recommends: vulkan-tools
 Section: non-free/kernel
 Priority: optional
-Description: Experimental PowerVR BXM Vulkan stack for Orange Pi Zero 3W
+Description: Experimental PowerVR BXM Vulkan stack for $BOARD_NAME
  Built for $kernel from donor DDK 24.2.6603887.
+ Board profile $BOARD_ENV, validation status $BOARD_STATUS.
  Private userspace libraries selected with powervr-run.
 EOF
 cat > "$stage/DEBIAN/postinst" <<EOF
@@ -92,13 +117,8 @@ if [ "\$1" = remove ] || [ "\$1" = purge ]; then
     if [ -d '/lib/modules/$kernel' ]; then depmod -a '$kernel'; fi
 fi
 EOF
-cat > "$stage/DEBIAN/preinst" <<'EOF'
-#!/bin/sh
-set -e
-if ! tr '\000' '\n' < /proc/device-tree/compatible | grep -qx 'xunlong,orangepi-zero3w'; then
-  echo 'This package targets the Orange Pi Zero 3W only.' >&2
-  exit 1
-fi
+python3 scripts/boards.py --board "$BOARD_ENV" --preinst > "$stage/DEBIAN/preinst"
+cat >> "$stage/DEBIAN/preinst" <<'EOF'
 if [ "$1" = install ]; then
   if [ -e /opt/orangepi-powervr ] || [ -e /etc/modules-load.d/orangepi-powervr.conf ]; then
     echo 'Existing unmanaged PowerVR install detected; move it aside first.' >&2
@@ -115,7 +135,9 @@ EOF
 chmod 755 "$stage/DEBIAN/"{preinst,postinst,postrm}
 printf '/etc/modules-load.d/orangepi-powervr.conf\n' > "$stage/DEBIAN/conffiles"
 printf 'Kernel: %s\nKernel package: %s\nHeaders package: %s\n' "$kernel" "$image_version" "$header_version" > "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
+printf 'Board profile: %s\nBoard name: %s\nBoard validation: %s\n' "$BOARD_ENV" "$BOARD_NAME" "$BOARD_STATUS" >> "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
 gcc --version | head -1 >> "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
-dpkg-deb --root-owner-group --build "$stage" dist/orangepi-zero3w-powervr_24.2.6603887-2_arm64.deb
+dpkg-deb --root-owner-group --build "$stage" "dist/$package_name"
+printf '%s\n' "$package_name" > "dist/core-package-$BOARD_ENV.path"
 sha256sum dist/*.deb > dist/SHA256SUMS
 echo 'Package built. Inspect with dpkg-deb --info and dpkg-deb --contents before installation.'

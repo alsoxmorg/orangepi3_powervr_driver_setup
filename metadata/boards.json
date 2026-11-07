@@ -1,0 +1,18 @@
+{
+  "opz3w": {
+    "name": "Orange Pi Zero 3W",
+    "compatible": ["xunlong,orangepi-zero3w"],
+    "status": "tested",
+    "compatible_status": "observed on development machine",
+    "kernel_image_package": "linux-image-vendor-sun60iw2",
+    "kernel_headers_package": "linux-headers-vendor-sun60iw2"
+  },
+  "opz4": {
+    "name": "Orange Pi Zero 4",
+    "compatible": ["xunlong,orangepi-zero4"],
+    "status": "experimental-unverified",
+    "compatible_status": "provisional identifier; confirm from target /proc/device-tree/compatible before hardware acceptance",
+    "kernel_image_package": "linux-image-vendor-sun60iw2",
+    "kernel_headers_package": "linux-headers-vendor-sun60iw2"
+  }
+}

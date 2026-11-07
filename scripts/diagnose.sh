@@ -13,6 +13,9 @@ mkdir -p work/diagnostics
 log="work/diagnostics/session-$(date -u +%Y%m%dT%H%M%SZ).log"
 {
   printf 'Kernel: '; uname -r
+  python3 scripts/boards.py 2>&1
+  printf 'Device-tree model: '; tr -d '\000' < /proc/device-tree/model 2>/dev/null; echo
+  printf 'Device-tree compatible:\n'; tr '\000' '\n' < /proc/device-tree/compatible 2>/dev/null
   id
   printf 'DISPLAY=%s\nWAYLAND_DISPLAY=%s\nXDG_RUNTIME_DIR=%s\nXDG_SESSION_TYPE=%s\n' \
     "${DISPLAY-}" "${WAYLAND_DISPLAY-}" "${XDG_RUNTIME_DIR-}" "${XDG_SESSION_TYPE-}"

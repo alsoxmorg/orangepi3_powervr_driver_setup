@@ -1,4 +1,4 @@
-# Experimental PowerVR userland, revision -4
+# Experimental PowerVR userland, revision -5
 
 The optional userland package installs private vendor EGL/GLES/GBM libraries,
 process-only compatibility helpers and opt-in launchers. It does not replace
@@ -108,3 +108,7 @@ sudo apt purge orangepi-zero3w-powervr-userland
 No global loader/session configuration needs restoring. The original Vulkan core
 package can remain installed. Vendor binaries retain their original terms; review
 redistribution rights before uploading generated packages publicly.
+
+## Board profiles
+
+Revision 5 includes the shared `opz3w` / `opz4` board manifest and [board documentation](BOARDS.md). Graphics libraries and presentation workarounds are unchanged from revision 4. Zero 4 hardware is not yet verified. `BOARD_ENV` selects a build/install profile; it does not need to be set when launching applications.

@@ -133,3 +133,28 @@ MESA_VK_WSI_DEBUG=sw,linear timeout --kill-after=5s 30s powervr-run vkcube --wsi
 ```
 
 The client selects `PowerVR B-Series BXM-4-64 MC1`. This verifies one bounded Vulkan rendering/presentation workload through Xwayland in the session started with `debug-hardware-sway.sh --egl-import-check`. The `sw` setting selects a CPU/copy presentation path; it does not select the lavapipe software Vulkan ICD. It is not zero-copy presentation, desktop OpenGL acceleration, long-term stability or a generic application compatibility claim. The compatibility helper remains source-only/opt-in and has not yet been integrated into an installed release package.
+
+## Kernel upgrade preparation, 2026-10-29
+
+Installed image `26.11.0-trunk-dietpi1` and core GPU package `24.2.6603887-1`
+blocked apt's candidate image `26.11.0-trunk-dietpi2`. Matching dietpi2 headers
+were already installed. Userland `24.2.6603887-4` is now installed. Both kernel
+packages use release `6.6.98-vendor-sun60iw2`, so uname alone cannot distinguish them.
+
+Built replacement core `24.2.6603887-3+kernel26.11.0-trunk-dietpi2` against the
+explicit dietpi2 header tree; module compilation, MODPOST, link and vermagic checks
+passed. Target CONFIG_MODVERSIONS is disabled, so no module symbol-CRC comparison
+is available. Existing GCC 14.2 versus kernel GCC 13.3 warning remains.
+
+An apt simulation installing the local GPU package together with the pinned
+dietpi2 image/headers succeeds with exactly two upgrades and zero removals,
+retaining the userland package. No system installation/reboot was performed from
+the sandbox. Post-upgrade reboot and rendering acceptance remain pending.
+The builder now supports `--kernel-package VERSION` for preparing future matched
+upgrades and records a target-version-specific package filename.
+
+## Board profile checks (2026-11-07)
+
+Nine board tests pass: detection, explicit mismatch rejection, unknown identifiers, NUL-separated device-tree parsing, architecture/board guards, kernel package overrides and low-memory job selection. Existing six session guard tests and the renderer import fixture also pass. Zero 3W detects as `opz3w`; selecting `opz4` for a core build on it is rejected before preparation. The revision 5 userland package builds locally. No Zero 4 hardware tests have been performed; its compatible identifier remains provisional.
+
+A normal core build was correctly blocked: installed image `26.11.0-trunk-dietpi2` and headers `26.11.0-trunk-dietpi3` differ. No newly compiled core package or system installation is claimed by this board-profile change.
