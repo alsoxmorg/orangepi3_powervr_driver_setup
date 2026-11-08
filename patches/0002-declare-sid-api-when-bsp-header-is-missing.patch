@@ -1,11 +1,8 @@
 --- a/img-bxm/linux/rogue_km/services/system/rogue/rgx_sunxi/sunxi_platform.c
 +++ b/img-bxm/linux/rogue_km/services/system/rogue/rgx_sunxi/sunxi_platform.c
-@@ -34,7 +34,15 @@
- 
- #include "rgxdevice.h"
- #include "sunxi_platform.h"
+@@ -36,0 +37 @@
 +#if __has_include(<sunxi-sid.h>)
- #include <sunxi-sid.h>
+@@ -37,0 +39,7 @@
 +#else
 +/* Some Orange Pi header packages omit BSP headers. Keep the real exported
 + * SID call; declaration matches linux-orangepi orange-pi-6.6-sun60iw2
@@ -13,6 +10,3 @@
 + */
 +extern int sunxi_get_module_param_from_sid(u32 *dst, u32 offset, u32 len);
 +#endif
- 
- #if defined(SUNXI_DVFS_CTRL_ENABLE)
- #include "sunxi_dvfs_ctrl.h"
