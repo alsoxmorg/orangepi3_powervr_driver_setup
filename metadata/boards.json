@@ -1,18 +1,26 @@
 {
   "opz3w": {
     "name": "Orange Pi Zero 3W",
-    "compatible": ["xunlong,orangepi-zero3w"],
+    "compatible": [
+      "xunlong,orangepi-zero3w"
+    ],
     "status": "tested",
     "compatible_status": "observed on development machine",
     "kernel_image_package": "linux-image-vendor-sun60iw2",
-    "kernel_headers_package": "linux-headers-vendor-sun60iw2"
+    "kernel_headers_package": "linux-headers-vendor-sun60iw2",
+    "platform": "DietPi (Debian 13)"
   },
   "opz4": {
     "name": "Orange Pi Zero 4",
-    "compatible": ["xunlong,orangepi-zero4"],
-    "status": "experimental-unverified",
-    "compatible_status": "provisional identifier; confirm from target /proc/device-tree/compatible before hardware acceptance",
-    "kernel_image_package": "linux-image-vendor-sun60iw2",
-    "kernel_headers_package": "linux-headers-vendor-sun60iw2"
+    "compatible": [
+      "xunlong,orangepi-zero4",
+      "xunlong,orangepi-4-pro"
+    ],
+    "status": "tested",
+    "compatible_status": "observed xunlong,orangepi-4-pro on user-confirmed Zero 4 with /etc/orangepi-release BOARD=orangepizero4; xunlong,orangepi-zero4 remains provisional",
+    "kernel_image_package": "linux-image-current-sun60iw2",
+    "kernel_headers_package": "linux-headers-current-sun60iw2",
+    "platform": "Orange Pi Debian 13",
+    "validation": "Native build, firmware, Vulkan, GLES and display-buffer checks passed; user confirmed powervr-sway works. Reboot and long-term stability remain unverified."
   }
 }

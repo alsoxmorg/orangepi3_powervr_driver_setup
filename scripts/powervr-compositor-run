@@ -22,7 +22,7 @@ if [ "${POWERVR_RENDERER_IMPORT_CHECK:-0}" = 1 ]; then
     case "$version" in 0.18.*) ;; *) echo 'Renderer import compatibility requires wlroots 0.18.' >&2; exit 1 ;; esac
     import_shim="$runtime/lib/libpowervr-egl-import-check.so"
     if [ ! -r "$import_shim" ]; then
-        echo 'Missing renderer import compatibility helper; install userland revision -4.' >&2; exit 1
+        echo 'Missing renderer import compatibility helper; build/install the current userland package.' >&2; exit 1
     fi
     shim="$shim:$import_shim"
 fi

@@ -19,6 +19,7 @@ jobs:
           PY
           python3 tests/test-session-guard.py
           python3 tests/test-boards.py
+          python3 tests/test-installer.py
           bash scripts/test-import-check.sh
       - name: Keep donor data and generated binaries out of the source release
         run: |

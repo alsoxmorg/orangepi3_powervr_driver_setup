@@ -33,9 +33,29 @@ class BoardTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 boards.resolve(self.profiles, '', compatible)
 
-    def test_zero4_is_not_reported_as_tested(self):
-        self.assertEqual(self.profiles['opz4']['status'], 'experimental-unverified')
+    def test_zero4_records_confirmed_hardware_acceptance(self):
+        self.assertEqual(self.profiles['opz4']['status'], 'tested')
+        self.assertIn('user confirmed', self.profiles['opz4']['validation'])
         self.assertIn('provisional', self.profiles['opz4']['compatible_status'])
+
+    def test_zero4_stock_image_identity(self):
+        compatible = ['xunlong,orangepi-4-pro', 'arm,sun60iw2p1']
+        self.assertEqual(boards.resolve(self.profiles, '', compatible, True)[0], 'opz4')
+        with self.assertRaises(ValueError):
+            boards.resolve(self.profiles, 'opz3w', compatible, True)
+
+    def test_architecture_selection(self):
+        for requested in ('', 'arm64', 'aarch64'):
+            result = boards.settings('opz4', self.profiles['opz4'], {'ARCH': requested})
+            self.assertEqual(result['ARCH'], 'arm64')
+        for requested in ('arm', 'armhf', 'x86_64', 'amd64'):
+            with self.assertRaisesRegex(ValueError, 'Only ARCH=arm64'):
+                boards.settings('opz4', self.profiles['opz4'], {'ARCH': requested})
+
+    def test_board_kernel_defaults(self):
+        self.assertEqual(self.profiles['opz3w']['kernel_image_package'], 'linux-image-vendor-sun60iw2')
+        self.assertEqual(self.profiles['opz4']['kernel_image_package'], 'linux-image-current-sun60iw2')
+        self.assertEqual(self.profiles['opz4']['kernel_headers_package'], 'linux-headers-current-sun60iw2')
 
     def test_binary_compatible_reader(self):
         with tempfile.TemporaryDirectory() as directory:

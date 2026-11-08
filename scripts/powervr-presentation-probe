@@ -20,6 +20,15 @@ done
 if [ -z "$display_device" ] || [ -z "$render_device" ]; then
   echo 'Both sunxi-drm display and PowerVR render devices are required.' >&2; exit 1
 fi
+for device in "$display_device" "$render_device"; do
+  if [ ! -r "$device" ] || [ ! -w "$device" ]; then
+    echo "Cannot read/write $device as $(id -un)." >&2
+    echo "Current session groups: $(id -nG)" >&2
+    echo 'From the source tree, run: sudo ./install.sh access YOUR_LOGIN_USER' >&2
+    echo 'Then log out of the TTY completely and log back in; restarting a terminal application does not refresh groups.' >&2
+    exit 1
+  fi
+done
 if [ "$compare" = 1 ]; then
   echo '=== Baseline wlroots format negotiation (failure is diagnostic) ==='
   if env -u WLR_EGL_NO_MODIFIERS -u WLR_DRM_NO_MODIFIERS \

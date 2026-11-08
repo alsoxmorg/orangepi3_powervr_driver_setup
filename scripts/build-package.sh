@@ -10,9 +10,14 @@ fi
 test "$(id -u)" != 0 || { echo 'Build as a normal user.' >&2; exit 1; }
 test "$(uname -m)" = aarch64 || { echo 'Native ARM64 build required.' >&2; exit 1; }
 source scripts/board-env.sh
+source scripts/install-support.sh
 board_env_init check
-image_version=$(dpkg-query -W -f='${Version}' "$KERNEL_IMAGE_PACKAGE")
-header_version=$(dpkg-query -W -f='${Version}' "$KERNEL_HEADERS_PACKAGE")
+require_native_host
+image_version=$(installed_version "$KERNEL_IMAGE_PACKAGE")
+header_version=$(installed_version "$KERNEL_HEADERS_PACKAGE") || {
+  echo "Missing $KERNEL_HEADERS_PACKAGE. Install exact headers for $KERNEL_IMAGE_PACKAGE=$image_version before building." >&2
+  exit 1
+}
 kernel=$(uname -r)
 headers="/lib/modules/$kernel/build"
 if [ -n "$requested_image_version" ]; then
@@ -30,29 +35,28 @@ else
   }
 fi
 case "$kernel" in
-  6.6.*-vendor-sun60iw2) ;;
-  *) echo 'Only the vendor sun60iw2 6.6 kernel line is supported by this experiment.' >&2; exit 1 ;;
+  6.6.*-vendor-sun60iw2|6.6.*-sun60iw2) ;;
+  *) echo 'Only the vendor/current sun60iw2 6.6 kernel line is supported by this experiment.' >&2; exit 1 ;;
 esac
 test -f "$headers/Module.symvers" || { echo "Missing exact headers for $kernel" >&2; exit 1; }
 test "$(cat "$headers/include/config/kernel.release")" = "$kernel"
 test "$image_version" = "$header_version" || { echo 'Kernel and header package versions differ.' >&2; exit 1; }
 kernel_tag=${image_version//:/+}
-package_version="24.2.6603887-4+$BOARD_ENV.kernel$kernel_tag"
+package_version="24.2.6603887-5+$BOARD_ENV.kernel$kernel_tag"
 package_name="orangepi-zero3w-powervr_${package_version}_arm64.deb"
 printf 'Building for kernel %s, kernel/header package %s\n' "$kernel" "$image_version"
 python3 scripts/prepare.py --verify
-mkdir -p "work/build-$BOARD_ENV" dist
-source_dir="work/build-$BOARD_ENV/img-bxm-dkms-0.1.0-1"
-test ! -e "$source_dir" || { echo "Move work/build-$BOARD_ENV/ aside before rebuilding." >&2; exit 1; }
+mkdir -p work dist
+build_dir=$(mktemp -d "$PWD/work/build-$BOARD_ENV.XXXXXX")
+source_dir="$build_dir/img-bxm-dkms-0.1.0-1"
 cp -a work/source/img-bxm-dkms-0.1.0-1 "$source_dir"
-patch -d "$source_dir" -p1 < patches/0001-use-kernel-make-intermediate-policy.patch
-make -j"${JOBS:-4}" BUILD=release KERNEL_CC=gcc KERNEL_LD=ld KERNEL_NM=nm \
+for fix in patches/*.patch; do patch -d "$source_dir" -p1 < "$fix"; done
+make -j"${JOBS:-4}" ARCH="$ARCH" BUILD=release KERNEL_CC=gcc KERNEL_LD=ld KERNEL_NM=nm \
   KERNEL_OBJCOPY=objcopy KERNELDIR="$headers" \
   -C "$source_dir/img-bxm/linux/rogue_km/build/linux/sunxi_linux" 2>&1 | tee "work/build-$BOARD_ENV.log"
 module="$source_dir/img-bxm/linux/rogue_km/binary_sunxi_linux_nulldrmws_release/target_aarch64/kbuild/pvrsrvkm.ko"
 test "$(/sbin/modinfo -F vermagic "$module" | cut -d' ' -f1)" = "$kernel"
-stage="work/package-$BOARD_ENV"
-test ! -e "$stage" || { echo "Move $stage/ aside before packaging." >&2; exit 1; }
+stage=$(mktemp -d "$PWD/work/package-$BOARD_ENV.XXXXXX")
 mkdir -p "$stage/DEBIAN" "$stage/opt/orangepi-powervr/lib" \
   "$stage/lib/modules/$kernel/updates/orangepi-powervr" "$stage/lib/firmware/updates" \
   "$stage/usr/bin" "$stage/usr/share/doc/orangepi-zero3w-powervr" \
@@ -60,7 +64,9 @@ mkdir -p "$stage/DEBIAN" "$stage/opt/orangepi-powervr/lib" \
 install -m644 "$module" "$stage/lib/modules/$kernel/updates/orangepi-powervr/pvrsrvkm.ko"
 # Include the full corresponding patched module source, without build products.
 cp -a work/source/img-bxm-dkms-0.1.0-1/. "$stage/usr/src/orangepi-powervr-24.2.6603887/"
-patch -d "$stage/usr/src/orangepi-powervr-24.2.6603887" -p1 < patches/0001-use-kernel-make-intermediate-policy.patch
+for fix in patches/*.patch; do
+  patch -d "$stage/usr/src/orangepi-powervr-24.2.6603887" -p1 < "$fix"
+done
 cp patches/*.patch "$stage/usr/share/doc/orangepi-zero3w-powervr/"
 cp README.md LICENSE "$stage/usr/share/doc/orangepi-zero3w-powervr/"
 cp -a docs "$stage/usr/share/doc/orangepi-zero3w-powervr/"
@@ -107,7 +113,8 @@ if [ "\$1" = configure ]; then
     depmod -a '$kernel'
     echo 'Installed for $kernel. Existing loaded modules are not replaced.'
     echo 'Use powervr-run vulkaninfo --summary after loading pvrsrvkm.'
-    echo 'Add your login account to render, then log out and back in.'
+    echo 'Run sudo ./install.sh access USER from the source tree to configure video/render access.'
+    echo 'Log out of the local TTY completely and log back in before powervr-sway.'
 fi
 EOF
 cat > "$stage/DEBIAN/postrm" <<EOF
@@ -136,8 +143,14 @@ chmod 755 "$stage/DEBIAN/"{preinst,postinst,postrm}
 printf '/etc/modules-load.d/orangepi-powervr.conf\n' > "$stage/DEBIAN/conffiles"
 printf 'Kernel: %s\nKernel package: %s\nHeaders package: %s\n' "$kernel" "$image_version" "$header_version" > "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
 printf 'Board profile: %s\nBoard name: %s\nBoard validation: %s\n' "$BOARD_ENV" "$BOARD_NAME" "$BOARD_STATUS" >> "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
+printf 'Target platform: %s\nArchitecture: %s\n' "$BOARD_PLATFORM" "$ARCH" >> "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
 gcc --version | head -1 >> "$stage/usr/share/doc/orangepi-zero3w-powervr/build-info.txt"
-dpkg-deb --root-owner-group --build "$stage" "dist/$package_name"
+package_tmp=$(mktemp "$PWD/dist/.core-$BOARD_ENV.XXXXXX.deb")
+trap 'rm -f -- "$package_tmp"' EXIT
+dpkg-deb --root-owner-group --build "$stage" "$package_tmp"
+chmod 644 "$package_tmp"
+mv -f -- "$package_tmp" "dist/$package_name"
+trap - EXIT
 printf '%s\n' "$package_name" > "dist/core-package-$BOARD_ENV.path"
 sha256sum dist/*.deb > dist/SHA256SUMS
 echo 'Package built. Inspect with dpkg-deb --info and dpkg-deb --contents before installation.'

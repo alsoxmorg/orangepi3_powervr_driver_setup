@@ -13,16 +13,19 @@ board_env_init() {
   settings=$(python3 "$board_base/scripts/boards.py" --env-lines "${arguments[@]}") || return 1
   while IFS=$'\t' read -r key value; do
     case "$key" in
+      ARCH) ARCH=$value ;;
       BOARD_ENV) BOARD_ENV=$value ;;
       BOARD_NAME) BOARD_NAME=$value ;;
       BOARD_STATUS) BOARD_STATUS=$value ;;
+      BOARD_PLATFORM) BOARD_PLATFORM=$value ;;
       KERNEL_IMAGE_PACKAGE) KERNEL_IMAGE_PACKAGE=$value ;;
       KERNEL_HEADERS_PACKAGE) KERNEL_HEADERS_PACKAGE=$value ;;
       JOBS) JOBS=$value ;;
     esac
   done <<< "$settings"
-  export BOARD_ENV BOARD_NAME BOARD_STATUS KERNEL_IMAGE_PACKAGE KERNEL_HEADERS_PACKAGE JOBS
+  export ARCH BOARD_ENV BOARD_NAME BOARD_STATUS BOARD_PLATFORM KERNEL_IMAGE_PACKAGE KERNEL_HEADERS_PACKAGE JOBS
   printf 'Board: %s (%s), status=%s, build jobs=%s\n' "$BOARD_NAME" "$BOARD_ENV" "$BOARD_STATUS" "$JOBS"
+  printf 'Target image: %s\n' "$BOARD_PLATFORM"
   if [ "$BOARD_STATUS" != tested ]; then
     echo 'Experimental board profile: device-tree ID, kernel and GPU behavior still require target hardware acceptance.' >&2
   fi

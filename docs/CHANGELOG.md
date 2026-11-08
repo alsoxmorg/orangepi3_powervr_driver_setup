@@ -1,3 +1,22 @@
+# Changelog
+
+## Platform installers — core revision 5 / userland revision 6
+
+- Add complete Zero 3W/DietPi and Zero 4/Orange Pi Debian 13 entry points backed
+  by shared setup, dependency, build, installation and headless verification steps.
+- Validate exact local headers by package/version/architecture; find Zero 4
+  headers shipped in `/opt` before falling back to exact-version apt headers.
+- Preserve Zero 3W vendor kernel defaults; accept the observed Zero 4 current
+  kernel layout and SID header omission without substituting an efuse stub.
+- Build in fresh directories for repeat runs, install both packages together and
+  validate board-specific output records. Retain historical Debian package names.
+- Configure video/render access for the invoking normal account; explain login
+  refresh requirements and surface permission errors from the Sway preflight.
+- Package the shared graphics workarounds unchanged; record the user's working
+  Zero 4 Sway session and headless rendering/display-sharing checks.
+- Add mock installer flow, failure-stop, header mismatch, architecture, package
+  selection and permission setup tests; no root/network needed by those tests.
+
 ## Board profiles — core revision 4 / userland revision 5
 
 - Add `BOARD_ENV=""` detection and `opz3w` / `opz4` profiles, retaining existing Debian package names.
@@ -5,8 +24,6 @@
 - Bind core packages to the selected board and isolate build directories/output records.
 - Select kernel package names by profile and scale build jobs to available memory.
 - Include board documentation and metadata in packages; runtime graphics workarounds are unchanged.
-
-# Changelog
 
 ## Optional userland add-on 24.2.6603887-4 — verified compatibility path
 

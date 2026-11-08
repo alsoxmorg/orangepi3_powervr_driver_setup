@@ -47,6 +47,7 @@ unset WLR_RENDERER_ALLOW_SOFTWARE XWAYLAND_NO_GLAMOR
 # buffers before opening a DRM backend. The old texture-only check missed this.
 if ! /usr/bin/powervr-presentation-probe >> "$log" 2>&1; then
   sync -f "$log"
+  tail -n 12 "$log" >&2
   echo "Presentation preflight failed; see $log. Display state was not changed." >&2
   exit 1
 fi

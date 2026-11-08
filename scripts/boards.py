@@ -64,12 +64,16 @@ def build_jobs(requested, meminfo=None, cpu_count=None):
 
 
 def settings(alias, profile, environ):
+    arch = environ.get('ARCH') or 'arm64'
+    if arch not in ('arm64', 'aarch64'):
+        raise ValueError('Only ARCH=arm64 (or aarch64) is supported by the pinned driver/runtime')
     image = environ.get('KERNEL_IMAGE_PACKAGE') or profile['kernel_image_package']
     headers = environ.get('KERNEL_HEADERS_PACKAGE') or profile['kernel_headers_package']
     for package in (image, headers):
         if not re.fullmatch(r'[a-z0-9][a-z0-9+.-]+', package):
             raise ValueError(f'Invalid kernel package name: {package!r}')
-    return {'BOARD_ENV': alias, 'BOARD_NAME': profile['name'], 'BOARD_STATUS': profile['status'],
+    return {'ARCH': 'arm64', 'BOARD_ENV': alias, 'BOARD_NAME': profile['name'], 'BOARD_STATUS': profile['status'],
+            'BOARD_PLATFORM': profile['platform'],
             'KERNEL_IMAGE_PACKAGE': image, 'KERNEL_HEADERS_PACKAGE': headers,
             'JOBS': str(build_jobs(environ.get('JOBS')))}
 

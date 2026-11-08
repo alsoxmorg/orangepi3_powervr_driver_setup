@@ -1,4 +1,4 @@
-# Experimental PowerVR userland, revision -5
+# Experimental PowerVR userland, revision -6
 
 The optional userland package installs private vendor EGL/GLES/GBM libraries,
 process-only compatibility helpers and opt-in launchers. It does not replace
@@ -13,7 +13,9 @@ uses a CPU/copy path. The regular desktop GL gears test uses **llvmpipe**, not
 hardware OpenGL. Native Vulkan Wayland WSI is not advertised by this donor.
 Long-term stability, general games and arbitrary applications remain unverified.
 
-Revision -4 packages that tested configuration so GDB is no longer required:
+Revision -6 retains that tested configuration and adds permission diagnostics;
+GDB is not required. For complete platform setup, see [INSTALL.md](INSTALL.md).
+To build/install just the private userland:
 
 ```bash
 ./install.sh userland
@@ -93,8 +95,10 @@ hang can still defeat orderly shutdown or the bounded-session timeout.
 
 See [validation](VALIDATION.md), [PRIME compatibility](PRIME-COMPAT.md), and
 [initial HDMI investigation](HDMI-FAILURE-2026-10-21.md) for the development record.
-The verified hardware run used the debugger launcher; acceptance of the packaged
-non-debugger launcher remains the next host check.
+The original Zero 3W run used the debugger launcher. On 2026-11-08 the user
+confirmed the packaged Sway launcher works on Zero 4 after refreshing video/render
+group membership. Visible Vulkan presentation and longer workloads still need
+Zero 4 acceptance checks.
 
 ## Undo
 

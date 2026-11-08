@@ -1,6 +1,6 @@
 # Experimental PowerVR driver for Orange Pi Zero 3W / Zero 4
 
-Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 13 / DietPi with the vendor 6.6 sun60iw2 kernel**. This directory is the complete source release: it downloads its pinned donor image, extracts the matching source/firmware/libraries without mounting, builds the module, and produces one local `.deb`.
+Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **DietPi (Debian 13) on Zero 3W or Orange Pi Debian 13 on Zero 4, with the sun60iw2 6.6 kernel**. This directory is the complete source release: it downloads its pinned donor image, extracts the matching source/firmware/libraries without mounting, builds the module, and produces one local `.deb`.
 
 > **VERY EXPERIMENTAL — for a spare, easily reimaged system.**
 > This is a community bring-up experiment, not a production graphics driver or a supported OS upgrade. Kernel crashes, display loss and boot failures are possible. Keep a working image backup and another way to reach the board. **PowerVR Vulkan cube presentation works with the optional compatibility userland and copy-presentation wrapper; broad application support remains experimental.** Installing this package does not establish that games, desktop acceleration, GLES, OpenCL or video acceleration work.
@@ -9,7 +9,7 @@ Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 
 
 | Test | Result on the development board |
 |---|---|
-| Native module build | Passed with one Make 4.4 compatibility patch |
+| Native module build | Passed on Zero 3W; Zero 4 build validation described in docs/BOARDS.md |
 | Hardware probe | PowerVR BXM-4-64 MC1, BVNC `36.56.104.183` |
 | Firmware loading | Both matching firmware images loaded |
 | Local `.deb` installation | User installed version `24.2.6603887-1` successfully |
@@ -23,56 +23,69 @@ Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **Debian 
 | Native Vulkan Wayland WSI | This donor driver does not advertise `VK_KHR_wayland_surface` |
 | Suspend/resume, long workloads, clean-image install | Not verified |
 
-The tested baseline is Orange Pi Zero 3W, ARM64, Debian 13, kernel `6.6.98-vendor-sun60iw2`, kernel and header packages `26.11.0-trunk-dietpi1`, with approximately 6 GB RAM. Orange Pi Zero 4 now has an experimental, unverified profile; mainline kernels remain outside this release's scope. Other releases within the vendor 6.6 line are accepted by the script but remain untested.
+The tested baseline is Orange Pi Zero 3W, ARM64, Debian 13, kernel `6.6.98-vendor-sun60iw2`, kernel and header packages `26.11.0-trunk-dietpi1`, with approximately 6 GB RAM. Orange Pi Zero 4 now has a tested Debian 13 bring-up path (`6.6.98-sun60iw2`, image/header `1.0.0`), with working headless graphics checks and user-confirmed Sway; mainline kernels remain outside this release's scope. Other releases within the vendor 6.6 line are accepted by the script but remain untested.
 
-## Board selection
+## Install for your platform
 
-`config/board.env` contains `BOARD_ENV=""`, which detects the board from its device tree. Set it to `opz3w` (Orange Pi Zero 3W) or `opz4` (Orange Pi Zero 4), or override it in the environment:
+Run **one** of these on the target board, as your normal user with sudo access:
+
+```bash
+# Orange Pi Zero 3W / DietPi based on Debian 13
+./scripts/install-opz3w-dietpi.sh
+```
+
+```bash
+# Orange Pi Zero 4 / Orange Pi Debian 13
+./scripts/install-opz4-debian.sh
+```
+
+Both default to `setup`: dependencies, matching headers, test tools, shared native
+ARM64 driver/private EGL builds, installation, video/render access, and headless
+verification. They do not start a desktop or reboot. **Log out of the local TTY
+completely and back in after setup**, then check `id -nG` includes `video` and
+`render` before running `powervr-sway`. Restarting Codex alone does not refresh
+login groups.
+
+The Zero 3W path keeps the DietPi `vendor-sun60iw2` package names; the Zero 4 path
+uses `current-sun60iw2` and can install exact headers shipped in `/opt` when they
+are missing from apt. There is no Zero 4 DietPi installer in this release.
+Historical `orangepi-zero3w-powervr` package names remain on both boards.
+
+See [complete platform installation instructions](docs/INSTALL.md), including
+individual commands, local header packages, minimal headless setup and testing.
+Pass `help` to either platform script to inspect commands before making changes.
 
 ```bash
 ./install.sh boards
-BOARD_ENV=opz4 ./install.sh board
-BOARD_ENV=opz4 ./install.sh deps
-BOARD_ENV=opz4 ./install.sh build
-sudo BOARD_ENV=opz4 ./install.sh install
+./install.sh board                     # auto-detect, or BOARD_ENV=opz3w / opz4
+./scripts/install-opz4-debian.sh help
+JOBS=1 ARCH=arm64 ./scripts/install-opz4-debian.sh setup
 ```
 
-**Zero 4 is an unverified bring-up profile.** Its expected device-tree identifier is provisional; confirm the new board's identity before installation. Explicit selection still checks the actual hardware. See [board profiles and acceptance checks](docs/BOARDS.md). Builds choose fewer parallel jobs when available RAM is low; `JOBS=1` overrides this. Historical `orangepi-zero3w-powervr` Debian package names are retained for dependency compatibility on both profiles.
+`ARCH=aarch64` is also accepted; other architectures and cross-compilation are
+not supported by the pinned ARM64 runtime. Native builds scale jobs to available
+RAM. Board selection never bypasses hardware checks. The observed Zero 4 image
+uses the shared `xunlong,orangepi-4-pro` compatible; see [board identity and
+validation](docs/BOARDS.md) before using a different image.
 
-## Quick start
+The build downloads this exact [Radxa donor release](https://github.com/radxa-build/radxa-cubie-a7z/releases/tag/rsdk-t7),
+verifies the pinned SHA256 and published SHA512, and extracts only required inputs.
+It needs about 1.1 GiB download and 16 GiB free space during extraction.
+**Do not flash the Radxa image onto the Orange Pi.** An existing exact donor can
+be selected with `./scripts/install-opz4-debian.sh setup /absolute/path/to/donor.img.xz`.
+Existing verified inputs are reused; core rebuilds use fresh staging directories.
 
-Download this repository as an archive and extract it, or clone it. In the directory containing this README, run these commands **as your normal user**:
-
-```bash
-./install.sh deps
-./install.sh build
-sudo ./install.sh install
-sudo usermod -aG render "$(id -un)"
-```
-
-The first step installs tools and headers matching the installed kernel package. It requires working Debian/DietPi apt repositories. The build runs without root; it downloads about **1.1 GiB** and needs approximately **16 GiB free disk space** during extraction. It may take several minutes on SD storage. If the installed kernel package is newer than the running kernel, boot the intended kernel before building.
-
-The build automatically downloads this exact [Radxa donor release](https://github.com/radxa-build/radxa-cubie-a7z/releases/tag/rsdk-t7), verifies both the pinned SHA256 and Radxa's published SHA512, and extracts only the required inputs. The donor is a Radxa **test build**, used as an input only: **do not flash the Radxa image onto the Orange Pi**.
-
-If the image is already available locally:
-
-```bash
-./install.sh build /absolute/path/to/radxa-cubie-a7z_bullseye_kde_t7.output_512.img.xz
-```
-
-Output:
+Output includes:
 
 ```text
-dist/orangepi-zero3w-powervr_24.2.6603887-4+opz3w.kernel<KERNEL_PACKAGE_VERSION>_arm64.deb
+dist/orangepi-zero3w-powervr_24.2.6603887-5+opz4.kernel<KERNEL_PACKAGE_VERSION>_arm64.deb
+dist/orangepi-zero3w-powervr-userland_24.2.6603887-6_arm64.deb
+dist/core-package-opz4.path
 dist/SHA256SUMS
 ```
 
-To inspect the package before installing:
-
-```bash
-dpkg-deb --info dist/*.deb
-dpkg-deb --contents dist/*.deb
-```
+Zero 3W core filenames/pointers contain `opz3w` instead. Inspect packages with
+`dpkg-deb --info` and `dpkg-deb --contents`. Run builds serially in one checkout.
 
 ## First test
 
@@ -95,7 +108,7 @@ After this succeeds, a reboot is an experimental persistence test. Installation 
 
 ## Optional EGL/GLES/GBM userland
 
-The optional revision -5 package includes the tested renderer import compatibility
+The optional revision -6 package includes the tested renderer import compatibility
 path and copy-presentation wrapper. It keeps system Mesa and default sessions intact.
 Follow the [userland instructions](docs/USERLAND.md):
 
@@ -108,8 +121,9 @@ sudo ./install.sh install-userland
 After exiting the desktop, run `powervr-sway` from a fresh local TTY without sudo.
 Inside it, test `powervr-vulkan-run vkcube --wsi xcb --c 120`.
 
-The successful hardware run used the equivalent debugger-based setup; the packaged
-normal launcher still needs a host acceptance run. PowerVR renders Vulkan, while
+The original Zero 3W hardware run used the equivalent debugger setup; the user
+has now confirmed the packaged normal Sway launcher on Zero 4. Visible Vulkan
+presentation on Zero 4 still needs its own acceptance run. PowerVR renders Vulkan, while
 the workaround uses CPU/copy presentation. Desktop OpenGL clients such as glxgears
 still use llvmpipe. The donor does not advertise native Wayland Vulkan WSI.
 
@@ -155,7 +169,7 @@ keeps the same `uname -r`. Do not remove the dependency pin or purge working
 userland merely to make apt proceed. A loaded old module is not replaced in memory
 by installation; a reboot is required to test the new kernel/module pairing.
 
-To rebuild from the retained verified inputs, first move the generated build and package staging directories aside, then run build again. Keep `work/source/` and `work/runtime/`.
+To rebuild from retained verified inputs, run build again. Each core build uses fresh board-specific build/staging directories; keep `work/source/` and `work/runtime/`. Old build directories remain available for inspection.
 
 To uninstall:
 
@@ -170,7 +184,7 @@ Uninstalling does not unload a module currently in use, remove render-group memb
 ```text
 install.sh       dependency setup, download/build/install, diagnostics
 scripts/         image verification/extraction, packaging, runtime wrapper
-patches/         Make 4.4 compatibility fix
+patches/         Make 4.4 and missing BSP header compatibility fixes
 metadata/        donor URL, hashes and input manifests
 config/          optional Xorg primary-display configuration
 tests/           EGL/GBM hardware pixel-readback probe

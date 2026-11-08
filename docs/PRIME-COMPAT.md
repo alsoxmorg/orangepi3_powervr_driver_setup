@@ -35,8 +35,9 @@ The user subsequently verified visible software GLX gears and a hardware PowerVR
 Vulkan cube using this callback. Userland revision -4 includes the helper and
 enables it through the normal opt-in `powervr-sway` launcher; GDB is no longer
 required for ordinary use. `powervr-vulkan-run` supplies the independently needed
-`sw,linear` WSI workaround. The normal packaged launcher still needs a host
-acceptance run. See [current instructions](USERLAND.md) and [validation](VALIDATION.md).
+`sw,linear` WSI workaround. The user confirmed the normal packaged Sway
+launcher on Zero 4 on 2026-11-08; a visible Vulkan presentation run on that
+board still needs separate acceptance. See [current instructions](USERLAND.md) and [validation](VALIDATION.md).
 
 From a fresh local TTY, without sudo:
 
