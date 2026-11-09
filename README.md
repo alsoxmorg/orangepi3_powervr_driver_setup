@@ -3,6 +3,17 @@
 Build and install the Allwinner A733 PowerVR BXM-4-64 vendor driver on **DietPi (Debian 13) on Zero 3W or Orange Pi Debian 13 on Zero 4, with the sun60iw2 6.6 kernel**. This directory is the complete source release: it downloads its pinned donor image, extracts the matching source/firmware/libraries without mounting, builds the module, and produces one local `.deb`.
 
 > **VERY EXPERIMENTAL — for a spare, easily reimaged system.**
+
+## WARNING! -- board fried!
+### Orange Pi Zero 4
+While compiling raylib/EGL, some testing was performed. Raylib did appear to work. I don't know if that was the cause, but it was the last thing I did before checking the board again. The board was powered off and would no longer turn on. No lights, no signs of life, nothing.
+
+USE AT YOUR OWN PERIL!
+
+If you're experimenting with GPU-related tasks, make sure you're using a reliable power outlet!
+
+YOU HAVE BEEN WARNED.
+
 > This is a community bring-up experiment, not a production graphics driver or a supported OS upgrade. Kernel crashes, display loss and boot failures are possible. Keep a working image backup and another way to reach the board. **PowerVR Vulkan cube presentation works with the optional compatibility userland and copy-presentation wrapper; broad application support remains experimental.** Installing this package does not establish that games, desktop acceleration, GLES, OpenCL or video acceleration work.
 
 ## What actually works
